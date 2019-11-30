@@ -153,8 +153,9 @@ public class Manager {
     private final Object lock7 = new Object();
 
     // S.T
-    Set<String> preparedCommonVoteId;
-    Set<String> commitSameVoteId;
+    private Set<String> preparedCommonVoteId;
+    private Set<String> commitSameVoteId = new HashSet<>();
+    private Set<String> replyFinalVoteId;
 
     @PostConstruct
     public void init() {
@@ -319,7 +320,7 @@ public class Manager {
                     startconsensus = false;
                     whiteList.clear();
                     consensusId++;
-                    LOGGER.info("Moved Votes From WhiteList To GrayList And Start Consensus Id :", consensusId);
+                    LOGGER.info("Moved Votes From WhiteList To GrayList And Start Consensus Id :'{}'", consensusId);
                     synchronized (lock1) {
                         lock1.notify();
                     }
@@ -340,8 +341,8 @@ public class Manager {
                 }
             }
 
-            consensusStatistics = new ConsensusStatistics(candidateGenesis.getElectionId(),
-                    consensusId, LocalDateTime.now(), null, grayList.size());
+            consensusStatistics = new ConsensusStatistics(candidateGenesis.getElectionId(), candidateId,
+                    consensusId, LocalDateTime.now(), null, grayList.size(), false);
 
             Set<String> voteId = new HashSet<>();
             for (Vote v : grayList) {
@@ -350,6 +351,7 @@ public class Manager {
             prePreparedConsensus = new PrePreparedConsensus(consensusId, candidateGenesis.getElectionId(),
                     candidateId, LocalDateTime.now(), LocalDateTime.now(), voteId);
 
+            //check for get all candidate or not
             preparedCommonVoteId = new HashSet<>(prePreparedConsensus.getGrayVoteIds());
             sendMessage(consensusPreprepareTopic, convertObjectToJson(prePreparedConsensus));
 
@@ -372,31 +374,44 @@ public class Manager {
                     e.printStackTrace();
                 }
             }
-            try {
 
-                if (!prePreparedMessage.getCandidateId().equals(candidateId)) {
-                    receivedCount++;
+            while (candidateGenesis.getCandidates().size() - 1 != receivedCount) {
+                try {
                     prePreparedMessage = convertJsonToPreprepareMessage(transferQueuePreprepareMessage.take());
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                receivedCount++;
+                if (!prePreparedMessage.getCandidateId().equals(candidateId)) {
+                    //done  // TODO‌:diff--> unity of each prepreparedmessage and base is preparedCommonVoteId -->unity is send and ununity move to WL
+                    for (String s : prePreparedMessage.getGrayVoteIds()) {
+                        if (preparedCommonVoteId.contains(s))
+//                            commitSameVoteId = new HashSet<>();
+                            commitSameVoteId.add(s);
+                        //TODO: ununity move to WL
+//                    else
+//                        whiteList.add(s);
 
-                    // TODO‌:diff--> unity of each prepreparedmessage and base is preparedCommonVoteId -->unity is send and ununity move to WL
-                    preparedCommonVoteId.retainAll(prePreparedMessage.getGrayVoteIds());
-
-                    if (candidateGenesis.getCandidates().size() - 1 == receivedCount) {
-                        receivedCount = 0;
-                        preparedConsensus = new PreparedConsensus(consensusId, candidateGenesis.getElectionId(),
-                                candidateId, LocalDateTime.now(), LocalDateTime.now(), preparedCommonVoteId);
-
-                        commitSameVoteId = new HashSet<>(preparedConsensus.getCommonVoteIds());
-                        sendMessage(consensusPrepareTopic, convertObjectToJson(preparedConsensus));
-
-                        synchronized (lock3) {
-                            lock3.notify();
-                        }
                     }
                 }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
+            //  preparedCommonVoteId.retainAll(prePreparedMessage.getGrayVoteIds());
+
+            if (candidateGenesis.getCandidates().size() - 1 == receivedCount) {
+                receivedCount = 0;
+                preparedConsensus = new PreparedConsensus(consensusId, candidateGenesis.getElectionId(),
+                        candidateId, LocalDateTime.now(), LocalDateTime.now(), preparedCommonVoteId);
+
+                LOGGER.info("***consensus id in prepared step is '{}'", consensusId);
+
+//                        commitSameVoteId = new HashSet<>(preparedConsensus.getCommonVoteIds());
+                sendMessage(consensusPrepareTopic, convertObjectToJson(preparedConsensus));
+
+                synchronized (lock3) {
+                    lock3.notify();
+                }
+            }
+
         }
     }
 
@@ -412,29 +427,39 @@ public class Manager {
                     e.printStackTrace();
                 }
             }
-            try {
-                if (!preParedMessage.getCandidateId().equals(candidateId)) {
-                    receivedCount++;
+            replyFinalVoteId = new HashSet<>();
+            while (candidateGenesis.getCandidates().size() - 1 != receivedCount) {
+                try {
                     preParedMessage = convertJsonToPrepareMessage(transferQueuePrepareMessage.take());
-
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                receivedCount++;
+                if (!preParedMessage.getCandidateId().equals(candidateId)) {
+//                    receivedCount++;
                     // TODO‌:diff--> unity of each prepreparedmessage and base is preparedCommonVoteId -->unity is send and ununity move to WL
                     // TODO: in diff determin 2/3 by counter
-                    commitSameVoteId.retainAll(preParedMessage.getCommonVoteIds());
-                    //TODO: check -2 or -1
-                    if (candidateGenesis.getCandidates().size() - 1 == receivedCount) {
-                        receivedCount = 0;
-                        commitConsensus = new CommitConsensus(consensusId, candidateGenesis.getElectionId(),
-                                candidateId, LocalDateTime.now(), LocalDateTime.now(), commitSameVoteId, true);
-
-                        sendMessage(consensusCommitTopic, convertObjectToJson(commitConsensus));
-
-                        synchronized (lock4) {
-                            lock4.notify();
-                        }
+                    for (String s : preParedMessage.getCommonVoteIds()) {
+                        if (commitSameVoteId.contains(s))
+                            replyFinalVoteId.add(s);
+                        //TODO: ununity move to WL
+//                    else
+//                        whiteList.add(s);
                     }
                 }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            }
+//                    commitSameVoteId.retainAll(preParedMessage.getCommonVoteIds());
+            if (candidateGenesis.getCandidates().size() - 1 == receivedCount) {
+                receivedCount = 0;
+                commitConsensus = new CommitConsensus(consensusId, candidateGenesis.getElectionId(),
+                        candidateId, LocalDateTime.now(), LocalDateTime.now(), commitSameVoteId, true);
+
+               commitSameVoteId.clear();
+                sendMessage(consensusCommitTopic, convertObjectToJson(commitConsensus));
+
+                synchronized (lock4) {
+                    lock4.notify();
+                }
             }
         }
     }
@@ -445,7 +470,7 @@ public class Manager {
     // reject --> move to white list
     public void replyStep() {
         int countConfirmConsensus = 0;
-        int receivedCount =0;
+        int receivedCount = 0;
         while (isRunning) {
             synchronized (lock4) {
                 try {
@@ -454,61 +479,57 @@ public class Manager {
                     e.printStackTrace();
                 }
             }
-            try {
-                if (!commitMessage.getCandidateId().equals(candidateId)) {
-                    receivedCount++;
+            while (candidateGenesis.getCandidates().size() - 1 != receivedCount) {
+                try {
                     commitMessage = convertJsonToCommitMessage(transferQueueCommitMessage.take());
-                    if (commitMessage.isConfirm())
-                        countConfirmConsensus++;
-                    //consensus is correct
-                    //TODO: reach 2/3 --> apply consensusu --> dont need to send msg to topic
-                    if (countConfirmConsensus >= transferQueueCommitMessage.size()) {
-                        replyConsensus = new ReplyConsensus(consensusId, candidateGenesis.getElectionId(),
-                                candidateId, LocalDateTime.now(), LocalDateTime.now(), true);
-                        sendMessage(consensusReplyTopic, convertObjectToJson(replyConsensus));
-                      //Check this
-                        startconsensus = true;
-                        //add vote to tip and count each candidate vote
-                        for (Vote v : grayList) {
-                            greenList.add(v);
+                    receivedCount++;
+                    if (!commitMessage.getCandidateId().equals(candidateId)) {
+                        if (commitMessage.isConfirm())
+                            countConfirmConsensus++;
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (candidateGenesis.getCandidates().size() - 1 == receivedCount) {
+                receivedCount = 0;
+                //consensus is correct
+                //TODO: reach 2/3 --> apply consensusu --> dont need to send msg to topic
+                if (countConfirmConsensus >= (receivedCount / 3)) {
+                    replyConsensus = new ReplyConsensus(consensusId, candidateGenesis.getElectionId(),
+                            candidateId, LocalDateTime.now(), LocalDateTime.now(), true);
+                    sendMessage(consensusReplyTopic, convertObjectToJson(replyConsensus));
+
+                    //add vote to tip and count each candidate vote
+                    for (Vote v : grayList) {
+                        greenList.add(v);
+                    }
+                    for (Vote v : grayList) {
+                        for (Integer i : v.getCandidates()) {
+                            tip.put(i + "", v.getCandidates());
                         }
+                    }
 
-                        for (Vote v : grayList) {
+                    consensusStatistics.setEndTime(LocalDateTime.now());
+                    consensusStatistics.setConsensusResult(true);
+                    sendMessage(consensusStatisticsTopic, convertObjectToJson(consensusStatistics));
 
-                            for (Integer i : v.getCandidates()) {
-                                tip.put(i + "", v.getCandidates());
-                            }
+                    grayList.clear();
+
+                    //Check this
+                    startconsensus = true;
+
+                    if (greenList.size() == candidateGenesis.getMaxGenerateVotes()) {
+                        synchronized (lock5) {
+                            lock5.notify();
                         }
-
-                        consensusStatistics.setEndTime(LocalDateTime.now());
-                        sendMessage(consensusStatisticsTopic, convertObjectToJson(consensusStatistics));
-
-                        grayList.clear();
-                        if (greenList.size() == candidateGenesis.getMaxGenerateVotes()) {
-                            synchronized (lock5) {
-                                lock5.notify();
-                            }
-                        }
-
-
                     }
                 }
-
-
-
-                else {
-                    replyConsensus = new ReplyConsensus(consensusId, candidateGenesis.getElectionId(),
-                            candidateId, LocalDateTime.now(), LocalDateTime.now(), false);
-                    sendMessage(consensusReplyTopic, convertObjectToJson(replyConsensus));
-                }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
         }
     }
 
     public void prePareTallyStep() {
-
 
         while (isRunning) {
             synchronized (lock5) {
@@ -545,6 +566,7 @@ public class Manager {
 
         Set<String> adherents = new HashSet<>();
         Set<String> opponents = new HashSet<>();
+        int receivedCount = 0;
 
         while (isRunning) {
             synchronized (lock6) {
@@ -555,15 +577,26 @@ public class Manager {
                 }
             }
             //determinate adherents and opponents
-            try {
-                preparedTallyMessage = convertJsonToPrepareTallyMessage(transferQueuePrepareTallyMessage.take());
-                if (preparedTallyMessage.getCandidateId() != candidateId) {
-                    if (preparedTallyMessage.getHashTipSet() == Objects.hash(tip) + "")
-                        adherents.add(preparedTallyMessage.getCandidateId());
-                    else
-                        opponents.add(preparedTallyMessage.getCandidateId());
+            while (candidateGenesis.getCandidates().size() - 1 != receivedCount) {
+                try {
+                    preparedTallyMessage = convertJsonToPrepareTallyMessage(transferQueuePrepareTallyMessage.take());
+                    receivedCount++;
+
+                    if (preparedTallyMessage.getCandidateId().equals(candidateId)) {
+                        if (preparedTallyMessage.getHashTipSet() == Objects.hash(tip) + "")
+                            adherents.add(preparedTallyMessage.getCandidateId());
+                        else
+                            opponents.add(preparedTallyMessage.getCandidateId());
+                    }
+
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
 
+            }
+
+            if (candidateGenesis.getCandidates().size() - 1 == receivedCount) {
+                receivedCount =0;
                 //more than 2/3 aggree on result
                 if (adherents.size() >= (adherents.size() + opponents.size()) / 3) {
                     commitTally = new CommitTally(candidateGenesis.getElectionId(), candidateId,
@@ -574,13 +607,16 @@ public class Manager {
                             LocalDateTime.now(), LocalDateTime.now(), adherents, opponents, false);
                     sendMessage(tallyCommitTopic, convertObjectToJson(commitTally));
                 }
+                LOGGER.info("***consensus id in commit tally step is '{}'", consensusId);
 
                 synchronized (lock7) {
                     lock7.notify();
                 }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+
             }
+
+
+
         }
 
     }
@@ -589,6 +625,7 @@ public class Manager {
 
         int countAgreeOnElectionResult = 0;
         int countDisAgreeOnElectionResult = 0;
+        int receivedCount = 0;
 
         while (isRunning) {
             synchronized (lock7) {
@@ -599,15 +636,23 @@ public class Manager {
                 }
             }
             //determinate election result
-            try {
-                commitTallyMessage = convertJsonToCommitTallyMessage(transferQueueCommitTallyMessage.take());
-                if (commitTallyMessage.getCandidateId() != candidateId) {
-                    if (commitTallyMessage.isTallyResult())
-                        countAgreeOnElectionResult++;
-                    else
-                        countDisAgreeOnElectionResult++;
+            while (candidateGenesis.getCandidates().size() - 1 != receivedCount) {
+                receivedCount++;
+                try {
+                    commitTallyMessage = convertJsonToCommitTallyMessage(transferQueueCommitTallyMessage.take());
+                    if (commitTallyMessage.getCandidateId().equals(candidateId)) {
+                        if (commitTallyMessage.isTallyResult())
+                            countAgreeOnElectionResult++;
+                        else
+                            countDisAgreeOnElectionResult++;
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
+            }
+            if (candidateGenesis.getCandidates().size() - 1 == receivedCount) {
 
+                receivedCount =0;
                 //more than 2/3 aggree on result
                 if (countAgreeOnElectionResult >= (countAgreeOnElectionResult + countDisAgreeOnElectionResult) / 3) {
                     replyTally = new ReplyTally(candidateGenesis.getElectionId(), candidateId,
@@ -618,9 +663,9 @@ public class Manager {
                             LocalDateTime.now(), LocalDateTime.now(), false);
                     sendMessage(tallyReplyTopic, convertObjectToJson(replyTally));
                 }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
+
+
         }
     }
 

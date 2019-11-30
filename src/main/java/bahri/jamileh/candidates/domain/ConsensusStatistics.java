@@ -8,6 +8,8 @@ public class ConsensusStatistics {
 
     private int electionId;
 
+    private String candidateId;
+
     private int consensusId;
 
     private LocalDateTime startTime;
@@ -19,23 +21,15 @@ public class ConsensusStatistics {
     //TODO: send each consensus result to manager
     private boolean consensusResult;
 
-    public ConsensusStatistics(long id, int electionId, int consensusId, LocalDateTime startTime,
-                               LocalDateTime endTime, int votesCount) {
-//        super(id);
+    public ConsensusStatistics(int electionId, String candidateId, int consensusId,
+                               LocalDateTime startTime, LocalDateTime endTime, int votesCount, boolean consensusResult) {
         this.electionId = electionId;
+        this.candidateId = candidateId;
         this.consensusId = consensusId;
         this.startTime = startTime;
         this.endTime = endTime;
         this.votesCount = votesCount;
-    }
-
-    public ConsensusStatistics(int electionId, int consensusId, LocalDateTime startTime,
-                               LocalDateTime endTime, int votesCount) {
-        this.electionId = electionId;
-        this.consensusId = consensusId;
-        this.startTime = startTime;
-        this.endTime = endTime;
-        this.votesCount = votesCount;
+        this.consensusResult = consensusResult;
     }
 
     public int getElectionId() {
@@ -78,6 +72,22 @@ public class ConsensusStatistics {
         this.votesCount = votesCount;
     }
 
+    public boolean isConsensusResult() {
+        return consensusResult;
+    }
+
+    public void setConsensusResult(boolean consensusResult) {
+        this.consensusResult = consensusResult;
+    }
+
+    public String getCandidateId() {
+        return candidateId;
+    }
+
+    public void setCandidateId(String candidateId) {
+        this.candidateId = candidateId;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -96,12 +106,12 @@ public class ConsensusStatistics {
     @Override
     public String toString() {
         return "ConsensusStatistics{" +
-//                "id=" + getId() +
-                ", electionId=" + electionId +
+                "electionId=" + electionId +
                 ", consensusId=" + consensusId +
                 ", startTime=" + startTime +
                 ", endTime=" + endTime +
                 ", votesCount=" + votesCount +
+                ", consensusResult=" + consensusResult +
                 '}';
     }
 }
