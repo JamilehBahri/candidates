@@ -25,8 +25,8 @@ public class Manager {
     @Value("${candidateId}")
     private String candidateId;
 
-    @Value("${candaidate.threshold.startconsensus.votecount}")
-    private int baseThreshold;
+//    @Value("${candaidate.threshold.startconsensus.votecount}")
+//    private int baseThreshold;
 
     @Value("${Vote.topicname}")
     private String ballotBoxGenesisTopic;
@@ -185,16 +185,16 @@ public class Manager {
         commitTallyThread.interrupt();
         replyTallyThread.interrupt();
         try {
-            generateCandidateTipsetThread.join(30000);
-            getVotesThread.join(30000);
-            prePrepareStepThread.join(30000);
-            preparedStepThread.join(30000);
-            commitStepThread.join(30000);
-            replyStepThread.join(30000);
+            generateCandidateTipsetThread.join(100000);
+            getVotesThread.join(100000);
+            prePrepareStepThread.join(100000);
+            preparedStepThread.join(100000);
+            commitStepThread.join(100000);
+            replyStepThread.join(100000);
 
-            prepareTallyThread.join(30000);
-            commitTallyThread.join(30000);
-            replyTallyThread.join(30000);
+            prepareTallyThread.join(100000);
+            commitTallyThread.join(100000);
+            replyTallyThread.join(100000);
 
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -312,7 +312,7 @@ public class Manager {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            if (whiteList.size() >= baseThreshold) {
+            if (whiteList.size() >= candidateGenesis.getStartconsensusvotecount()) {
                 for (Vote v : whiteList) {
                     grayList.add(v);
                 }
