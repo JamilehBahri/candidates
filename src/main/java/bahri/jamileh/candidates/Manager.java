@@ -25,9 +25,6 @@ public class Manager {
     @Value("${candidateId}")
     private String candidateId;
 
-//    @Value("${candaidate.threshold.startconsensus.votecount}")
-//    private int baseThreshold;
-
     @Value("${Vote.topicname}")
     private String ballotBoxGenesisTopic;
 
@@ -58,11 +55,16 @@ public class Manager {
     @Value("${Consensus.statistics}")
     private String consensusStatisticsTopic;
 
+    @Value("${Tally.statistics}")
+    private String tallyStatisticsTopic;
+
     private volatile boolean isRunning = true;
 
     private int consensusId = 0;
 
     private ConsensusStatistics consensusStatistics;
+
+    private TallyStatistics tallyStatistics;
 
     private volatile boolean startconsensus = true;
 
@@ -154,8 +156,9 @@ public class Manager {
 
     // S.T
     private Set<String> preparedCommonVoteId;
-    private Set<String> commitSameVoteId = new HashSet<>();
     private Set<String> replyFinalVoteId;
+//    private Set<String> commonVoteId = new HashSet<>();
+    private Set<String> commitSameVoteId ;
 
     @PostConstruct
     public void init() {
@@ -185,16 +188,16 @@ public class Manager {
         commitTallyThread.interrupt();
         replyTallyThread.interrupt();
         try {
-            generateCandidateTipsetThread.join(100000);
-            getVotesThread.join(100000);
-            prePrepareStepThread.join(100000);
-            preparedStepThread.join(100000);
-            commitStepThread.join(100000);
-            replyStepThread.join(100000);
+            generateCandidateTipsetThread.join(1000000);
+            getVotesThread.join(1000000);
+            prePrepareStepThread.join(1000000);
+            preparedStepThread.join(1000000);
+            commitStepThread.join(1000000);
+            replyStepThread.join(1000000);
 
-            prepareTallyThread.join(100000);
-            commitTallyThread.join(100000);
-            replyTallyThread.join(100000);
+            prepareTallyThread.join(1000000);
+            commitTallyThread.join(1000000);
+            replyTallyThread.join(1000000);
 
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -340,7 +343,6 @@ public class Manager {
                     e.printStackTrace();
                 }
             }
-
             consensusStatistics = new ConsensusStatistics(candidateGenesis.getElectionId(), candidateId,
                     consensusId, LocalDateTime.now(), null, grayList.size(), false);
 
@@ -351,8 +353,8 @@ public class Manager {
             prePreparedConsensus = new PrePreparedConsensus(consensusId, candidateGenesis.getElectionId(),
                     candidateId, LocalDateTime.now(), LocalDateTime.now(), voteId);
 
-            //check for get all candidate or not
             preparedCommonVoteId = new HashSet<>(prePreparedConsensus.getGrayVoteIds());
+
             sendMessage(consensusPreprepareTopic, convertObjectToJson(prePreparedConsensus));
 
             synchronized (lock2) {
@@ -361,11 +363,13 @@ public class Manager {
         }
     }
 
-    //TODO: wait to get all candidate gray list from preprepared topic
-    //TODO: common all gray lists ,then generate prepard message
+    /*wait to get all candidate gray list from preprepared topic ,
+    and compute gray list common votes ,then generate prepared message*/
     public void prepareStep() {
 
         int receivedCount = 0;
+        commitSameVoteId = new HashSet<>();
+
         while (isRunning) {
             synchronized (lock2) {
                 try {
@@ -375,18 +379,20 @@ public class Manager {
                 }
             }
 
-            while (candidateGenesis.getCandidates().size() - 1 != receivedCount) {
+            while (candidateGenesis.getCandidates().size()-1 != receivedCount) {
+
                 try {
                     prePreparedMessage = convertJsonToPreprepareMessage(transferQueuePreprepareMessage.take());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
                 receivedCount++;
+                //TODO: commitSameVoteId for received message is null, because while can not get other candidates message
+                //TODO: if condition is true ,but never run
                 if (!prePreparedMessage.getCandidateId().equals(candidateId)) {
-                    //done  // TODO‌:diff--> unity of each prepreparedmessage and base is preparedCommonVoteId -->unity is send and ununity move to WL
-                    for (String s : prePreparedMessage.getGrayVoteIds()) {
-                        if (preparedCommonVoteId.contains(s))
-//                            commitSameVoteId = new HashSet<>();
+                    //unity of each prepreparedmessage and base is preparedCommonVoteId -->unity is send and ununity move to WL
+                    for (String s : prePreparedMessage.getGrayVoteIds())
+                        if (preparedCommonVoteId.contains(s)){
                             commitSameVoteId.add(s);
                         //TODO: ununity move to WL
 //                    else
@@ -395,18 +401,13 @@ public class Manager {
                     }
                 }
             }
-            //  preparedCommonVoteId.retainAll(prePreparedMessage.getGrayVoteIds());
 
-            if (candidateGenesis.getCandidates().size() - 1 == receivedCount) {
+            if (candidateGenesis.getCandidates().size()-1  == receivedCount) {
                 receivedCount = 0;
                 preparedConsensus = new PreparedConsensus(consensusId, candidateGenesis.getElectionId(),
                         candidateId, LocalDateTime.now(), LocalDateTime.now(), preparedCommonVoteId);
 
-                LOGGER.info("***consensus id in prepared step is '{}'", consensusId);
-
-//                        commitSameVoteId = new HashSet<>(preparedConsensus.getCommonVoteIds());
                 sendMessage(consensusPrepareTopic, convertObjectToJson(preparedConsensus));
-
                 synchronized (lock3) {
                     lock3.notify();
                 }
@@ -415,10 +416,12 @@ public class Manager {
         }
     }
 
-    //TODO: wait to get all candidate common list from prepared topic
-    //TODO: all common lists ,then generate commit message
+    /* wait to get all candidate common list from prepared topic ,
+    and compute all common lists ,then generate commit message */
     public void commitStep() {
         int receivedCount = 0;
+        replyFinalVoteId = new HashSet<>();
+
         while (isRunning) {
             synchronized (lock3) {
                 try {
@@ -427,18 +430,18 @@ public class Manager {
                     e.printStackTrace();
                 }
             }
-            replyFinalVoteId = new HashSet<>();
-            while (candidateGenesis.getCandidates().size() - 1 != receivedCount) {
+            while (candidateGenesis.getCandidates().size() -1 != receivedCount) {
                 try {
                     preParedMessage = convertJsonToPrepareMessage(transferQueuePrepareMessage.take());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
                 receivedCount++;
+                //TODO: replyFinalVoteId for received message is null, because while can not get other candidates message
+                //TODO: if condition is true ,but never run
                 if (!preParedMessage.getCandidateId().equals(candidateId)) {
-//                    receivedCount++;
-                    // TODO‌:diff--> unity of each prepreparedmessage and base is preparedCommonVoteId -->unity is send and ununity move to WL
-                    // TODO: in diff determin 2/3 by counter
+                    // unity of each prepreparedmessage and base is preparedCommonVoteId -->unity is send and ununity move to WL
+                    // in diff determin 2/3 by counter
                     for (String s : preParedMessage.getCommonVoteIds()) {
                         if (commitSameVoteId.contains(s))
                             replyFinalVoteId.add(s);
@@ -448,13 +451,11 @@ public class Manager {
                     }
                 }
             }
-//                    commitSameVoteId.retainAll(preParedMessage.getCommonVoteIds());
-            if (candidateGenesis.getCandidates().size() - 1 == receivedCount) {
+            if (candidateGenesis.getCandidates().size()-1  == receivedCount) {
                 receivedCount = 0;
                 commitConsensus = new CommitConsensus(consensusId, candidateGenesis.getElectionId(),
                         candidateId, LocalDateTime.now(), LocalDateTime.now(), commitSameVoteId, true);
 
-               commitSameVoteId.clear();
                 sendMessage(consensusCommitTopic, convertObjectToJson(commitConsensus));
 
                 synchronized (lock4) {
@@ -464,10 +465,9 @@ public class Manager {
         }
     }
 
-    //TODO: wait to get all candidate commit messge from commit topic
-    //TODO: apply or reject consensus
-    // apply -->‌move votes to green list and add to tip set
-    // reject --> move to white list
+    /* wait to get all candidate commit messge from commit topic and  apply or reject consensus
+     apply -->‌move votes to green list and add to tip set
+     reject --> move to white list */
     public void replyStep() {
         int countConfirmConsensus = 0;
         int receivedCount = 0;
@@ -479,7 +479,7 @@ public class Manager {
                     e.printStackTrace();
                 }
             }
-            while (candidateGenesis.getCandidates().size() - 1 != receivedCount) {
+            while (candidateGenesis.getCandidates().size()-1 != receivedCount) {
                 try {
                     commitMessage = convertJsonToCommitMessage(transferQueueCommitMessage.take());
                     receivedCount++;
@@ -491,10 +491,10 @@ public class Manager {
                     e.printStackTrace();
                 }
             }
-            if (candidateGenesis.getCandidates().size() - 1 == receivedCount) {
+            if (candidateGenesis.getCandidates().size()-1 == receivedCount) {
                 receivedCount = 0;
                 //consensus is correct
-                //TODO: reach 2/3 --> apply consensusu --> dont need to send msg to topic
+                // reach 2/3 --> apply consensusu --> dont need to send msg to topic
                 if (countConfirmConsensus >= (receivedCount / 3)) {
                     replyConsensus = new ReplyConsensus(consensusId, candidateGenesis.getElectionId(),
                             candidateId, LocalDateTime.now(), LocalDateTime.now(), true);
@@ -509,12 +509,13 @@ public class Manager {
                             tip.put(i + "", v.getCandidates());
                         }
                     }
-
                     consensusStatistics.setEndTime(LocalDateTime.now());
                     consensusStatistics.setConsensusResult(true);
                     sendMessage(consensusStatisticsTopic, convertObjectToJson(consensusStatistics));
 
                     grayList.clear();
+                    commitSameVoteId.clear();
+                    preparedCommonVoteId.clear();
 
                     //Check this
                     startconsensus = true;
@@ -539,6 +540,9 @@ public class Manager {
                     e.printStackTrace();
                 }
             }
+            tallyStatistics = new TallyStatistics(candidateGenesis.getElectionId(), candidateId,
+                     LocalDateTime.now(), null, candidateGenesis.getMaxGenerateVotes(),false);
+
             Map<String, Integer> candidateTally = new HashMap<>();
             for (Integer value : candidateGenesis.getCandidates()) {
                 candidateTally.put(value + "", 0);
@@ -594,9 +598,9 @@ public class Manager {
                 }
 
             }
-
+            //TODO: check condition for other candidate message
             if (candidateGenesis.getCandidates().size() - 1 == receivedCount) {
-                receivedCount =0;
+                receivedCount = 0;
                 //more than 2/3 aggree on result
                 if (adherents.size() >= (adherents.size() + opponents.size()) / 3) {
                     commitTally = new CommitTally(candidateGenesis.getElectionId(), candidateId,
@@ -607,8 +611,6 @@ public class Manager {
                             LocalDateTime.now(), LocalDateTime.now(), adherents, opponents, false);
                     sendMessage(tallyCommitTopic, convertObjectToJson(commitTally));
                 }
-                LOGGER.info("***consensus id in commit tally step is '{}'", consensusId);
-
                 synchronized (lock7) {
                     lock7.notify();
                 }
@@ -651,19 +653,30 @@ public class Manager {
                 }
             }
             if (candidateGenesis.getCandidates().size() - 1 == receivedCount) {
-
                 receivedCount =0;
                 //more than 2/3 aggree on result
+                //TODO: check condition for other candidate message
                 if (countAgreeOnElectionResult >= (countAgreeOnElectionResult + countDisAgreeOnElectionResult) / 3) {
                     replyTally = new ReplyTally(candidateGenesis.getElectionId(), candidateId,
                             LocalDateTime.now(), LocalDateTime.now(), true);
                     sendMessage(tallyReplyTopic, convertObjectToJson(replyTally));
+                    tallyStatistics.setEndTime(LocalDateTime.now());
+                    tallyStatistics.setConsensusTallyResult(true);
+                    sendMessage(tallyStatisticsTopic, convertObjectToJson(tallyStatistics));
+
                 } else {
                     replyTally = new ReplyTally(candidateGenesis.getElectionId(), candidateId,
                             LocalDateTime.now(), LocalDateTime.now(), false);
                     sendMessage(tallyReplyTopic, convertObjectToJson(replyTally));
+                    tallyStatistics.setEndTime(LocalDateTime.now());
+                    tallyStatistics.setConsensusTallyResult(false);
+                    sendMessage(tallyStatisticsTopic, convertObjectToJson(tallyStatistics));
                 }
             }
+
+            //log each candidate vote count
+            LOGGER.info("Finish election Id ='{}' in candidate Id '{}' ",
+                    candidateGenesis.getElectionId(), candidateId);
 
 
         }

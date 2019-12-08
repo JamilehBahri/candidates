@@ -13,12 +13,6 @@ public class ReplyTally extends AbstractTally {
         this.electionResult = electionResult;
     }
 
-
-    public ReplyTally(long id, int electionId, String candidateId, LocalDateTime startTime,
-                      LocalDateTime persistTime, boolean electionResult) {
-        super(id, electionId, candidateId, startTime, persistTime);
-        this.electionResult = electionResult;
-    }
     public ReplyTally(){
 
     }

@@ -13,12 +13,6 @@ public class ReplyConsensus extends AbstractConsensus {
         this.result = result;
     }
 
-    public ReplyConsensus(long id, int electionId, int consensusId, String candidateId, LocalDateTime startTime,
-                          LocalDateTime persistTime, boolean result) {
-        super(id, electionId, consensusId, candidateId, startTime, persistTime);
-        this.result = result;
-    }
-
     public ReplyConsensus(){
 
     }

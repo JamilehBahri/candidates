@@ -7,12 +7,6 @@ public class PrePreparedConsensus extends AbstractConsensus {
 
     private Set<String> grayVoteIds;
 
-//    public PrePreparedConsensus(long id, int electionId, int consensusId, String candidateId,
-//                                LocalDateTime startTime, LocalDateTime persistTime, Set<Integer> grayVoteIds) {
-//        super(id, electionId, consensusId, candidateId, startTime, persistTime);
-//        this.grayVoteIds = grayVoteIds;
-//    }
-
     public PrePreparedConsensus(int consensusId, int electionId, String candidateId, LocalDateTime startTime,
                                 LocalDateTime persistTime, Set<String> grayVoteIds) {
         super(consensusId, electionId, candidateId, startTime, persistTime);

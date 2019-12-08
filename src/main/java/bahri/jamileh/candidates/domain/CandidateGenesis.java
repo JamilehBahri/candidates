@@ -6,8 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-//public class CandidateGenesis extends AbstractDomain {
-    public class CandidateGenesis {
+public class CandidateGenesis {
 
     private int electionId;
 

@@ -12,11 +12,6 @@ public class CommitConsensus extends AbstractConsensus {
 
      private boolean confirm;
 
-//    public CommitConsensus(long id, int electionId, int consensusId, String candidateId,
-//                           LocalDateTime startTime, LocalDateTime persistTime) {
-//        super(id, electionId, consensusId, candidateId, startTime, persistTime);
-//    }
-
     public  CommitConsensus(){
 
     }

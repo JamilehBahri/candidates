@@ -3,7 +3,6 @@ package bahri.jamileh.candidates.domain;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-//public class ConsensusStatistics extends AbstractDomain {
 public class ConsensusStatistics {
 
     private int electionId;
@@ -18,7 +17,6 @@ public class ConsensusStatistics {
 
     private int votesCount;
 
-    //TODO: send each consensus result to manager
     private boolean consensusResult;
 
     public ConsensusStatistics(int electionId, String candidateId, int consensusId,

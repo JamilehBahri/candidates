@@ -20,14 +20,6 @@ public class Candidate {
     public Candidate() {
     }
 
-    public Candidate(long id, int electionId, String candidateId,
-                     LocalDateTime persistTime, long votes) {
-//        super(id);
-        this.electionId = electionId;
-        this.candidateId = candidateId;
-        this.persistTime = persistTime;
-        this.votes = votes;
-    }
 
     public Candidate(int electionId, String candidateId, LocalDateTime persistTime, long votes) {
         this.electionId = electionId;

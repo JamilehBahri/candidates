@@ -8,12 +8,6 @@ public class PreparedConsensus extends AbstractConsensus {
 
     private Set<String> commonVoteIds;
 
-    public PreparedConsensus(long id, int electionId, int consensusId, String candidateId, LocalDateTime startTime,
-                             LocalDateTime persistTime, Set<String> commonVoteIds) {
-        super(id, electionId, consensusId, candidateId, startTime, persistTime);
-        this.commonVoteIds = commonVoteIds;
-    }
-
     public PreparedConsensus(){
 
     }
